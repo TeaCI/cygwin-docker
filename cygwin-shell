@@ -1,0 +1,135 @@
+#!/bin/bash
+
+set -e
+
+. /etc/cygwin-env
+
+if [ "${DEBUG_WRAPPER}" = "true" ]
+then
+    set -x
+fi
+
+if [ "${DISPLAY}" = "" ]
+then
+    export DISPLAY=:95
+    Xvfb :95 -ac -reset -terminate -screen 0 800x600x16 2>/dev/null &
+    sleep 3
+fi
+
+# workaround https://bugs.wine-staging.com/show_bug.cgi?id=403
+if [ "${DRONE}" = "true" ]
+then
+    if ! [ -d /drone/wineprefix ]
+    then
+        mv "${WINEPREFIX}" /drone/wineprefix
+    fi
+    export WINEPREFIX=/drone/wineprefix
+    export CYGWIN_ROOT=${WINEPREFIX}/drive_c/${CYGWIN_DIR}
+
+    echo "# Workaround docker image limitation"
+    echo "# FIXME: These packages can't be preinstalled inside docker image because docker image does not support cygwin symlink."
+    echo "$ wine c:/cygwin-installer.exe --site http://mirrors.tea-ci.org/cygwin --local-package-dir Z:/tmp/cygwin -W -P autoconf,automake,gawk,texinfo,python,asciidoc,gettext-devel,git,intltool,scons,xmlto,wget -q"
+    WINEDEBUG=-all wine c:/cygwin-installer.exe --site http://mirrors.tea-ci.org/cygwin --local-package-dir Z:/tmp/cygwin -W -P autoconf,automake,gawk,texinfo,python,asciidoc,gettext-devel,git,intltool,scons,xmlto,wget -q &> /dev/null
+    rm -f ${CYGWIN_ROOT}/bin/awk
+    cp ${CYGWIN_ROOT}/bin/gawk.exe ${CYGWIN_ROOT}/bin/awk.exe
+    rm -rf ${CYGWIN_ROOT}/etc/pki/tls/certs
+    cp -rf --preserve=xattr ${CYGWIN_ROOT}/usr/ssl/certs ${CYGWIN_ROOT}/etc/pki/tls/certs
+    cp -f  --preserve=xattr ${CYGWIN_ROOT}/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem ${CYGWIN_ROOT}/etc/pki/tls/certs/ca-bundle.crt
+    echo
+fi
+
+if [ "$1" = "-h" ] || [ "$1" = "--help" ]
+then
+    echo  Usage:  $0 "-c commandline"
+    echo "      " $0 "script-file"
+    echo "      " cat script-file \| $0 
+    echo
+    exit
+fi
+
+if [ "${WINEDEBUG}" = "" ]
+then
+    export WINEDEBUG=fixme-all
+fi
+
+EXIT_CODE=exit_code.$$
+
+if [ "${DRONE_BUILD_DIR}" ]
+then
+    if ! [ -d ${CYGWIN_ROOT}/${DRONE_BUILD_DIR} ]
+    then
+        DRONE_BUILD_DIR_PARENT=$(dirname ${DRONE_BUILD_DIR})
+        mkdir -p ${CYGWIN_ROOT}/${DRONE_BUILD_DIR_PARENT}
+        ln -s ${DRONE_BUILD_DIR} ${CYGWIN_ROOT}/${DRONE_BUILD_DIR}
+    fi
+    CYGWIN_INIT_DIR=${CYGWIN_ROOT}/${DRONE_BUILD_DIR}
+fi
+
+if [ "${CYGWIN_INIT_DIR}" ]
+then
+    cd ${CYGWIN_INIT_DIR}
+else
+    cd ${CYGWIN_ROOT} # FIXME
+fi
+
+UNIXPWD=`pwd`
+WINPWD=`winepath -w ${UNIXPWD}`
+WINPWD=${WINPWD//\\/\/} # replace \ to /
+
+
+if [ "${DEBUG_WRAPPER}" = "true" ]
+then
+    echo "CYGWIN shell in ${CYGWIN_ROOT} in Wine on Linux"
+    echo "Entering CYGWIN shell >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
+fi
+
+if [ "$#" = "0" ]
+then
+    cat > ${CYGWIN_ROOT}/tmp/command.sh
+    wine ${CYGWIN_ROOT}/bin/mintty.exe --log - -e /bin/bash.exe -l -c "(cd \"${WINPWD}\"; bash -e < /tmp/command.sh || echo \$? > ${EXIT_CODE})" | tee
+elif [ "$1" = "-c" ]
+then
+    COMMAND=${@:2}
+    # Emulate CYGWIN COMMAND line prompt
+    echo ${USER}@${HOSTNAME} ${CYGWINTEM} ${WINPWD}
+    echo \$ ${COMMAND}
+    wine ${CYGWIN_ROOT}/bin/mintty.exe --log - -e /bin/bash.exe -l -c "(cd \"${WINPWD}\"; bash -e -c \"${COMMAND}\" || echo \$? > ${EXIT_CODE})" | tee
+else
+set -x
+    pushd `dirname $1` > /dev/null
+    UNIXPATH=`pwd`
+    popd > /dev/null
+    WINPATH=`winepath -w ${UNIXPATH}`
+    COMMAND_FILE=${WINPATH}\\`basename $1`
+    # Emulate CYGWIN COMMAND line prompt
+    echo ${USER}@${HOSTNAME} ${CYGWINTEM} ${WINPWD}
+    echo \$ ${COMMAND_FILE}
+    wine ${CYGWIN_ROOT}/bin/mintty.exe --log - -e /bin/bash.exe -l -c "(cd \"${WINPWD}\"; bash -e \"${COMMAND_FILE}\" || echo \$? > ${EXIT_CODE})" | tee
+fi
+
+if [ "$DEBUG_WRAPPER" = "true" ]
+then
+    echo "Leaving CYGWIN shell <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+fi
+
+wineserver -w
+
+if test -f ${EXIT_CODE}
+then
+    # clean up
+    exit_code=$(cat ${EXIT_CODE})
+    rm -f ${EXIT_CODE}
+
+    if [ "${DEBUG_WRAPPER}" = "true" ]
+    then
+        echo cygwin-shell executed \`$COMMAND\` failed with exit code ${exit_code}.
+        echo
+    fi
+    exit ${exit_code}
+fi
+
+if [ "${DEBUG_WRAPPER}" = "true" ]
+then
+    echo cygwin-shell executed \`$COMMAND\` successfully.
+fi
+echo

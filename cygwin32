@@ -1,0 +1,3 @@
+#!/bin/bash
+
+CYGWIN_ARCH=32 cygwin-shell "$@"

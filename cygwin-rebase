@@ -1,0 +1,20 @@
+#!/bin/bash
+
+if [ "$CYGWIN_ARCH" = 32 ]
+then
+    pushd ${CYGWIN_ROOT} > /dev/null
+    cat > autorebase.bat << EOF
+echo off
+
+set PATH=%~dp0\bin;%PATH%
+dash /bin/rebaseall -p
+EOF
+    WINEDEBUG=-all DISPLAY=:55.0 wine wineconsole --backend=curses autorebase.bat > /dev/null; wineserver -w
+    popd > /dev/null
+elif [ "$CYGWIN_ARCH" = 64 ]
+then
+    echo Nothing to do for 64 bit.
+else
+    echo "ERROR: CYGWIN_ARCH is not defined!"
+    exit 1
+fi

@@ -1,0 +1,38 @@
+build:
+  image: teaci/wine-staging
+  commands:
+    - wget http://security.ubuntu.com/ubuntu/pool/main/f/freetype/libfreetype6_2.5.2-1ubuntu2_i386.deb && wget http://security.ubuntu.com/ubuntu/pool/main/f/freetype/libfreetype6_2.5.2-1ubuntu2_amd64.deb && dpkg -i libfreetype6_2.5.2-1ubuntu2_amd64.deb libfreetype6_2.5.2-1ubuntu2_i386.deb
+    - export WINPTY_SHOW_CONSOLE=1
+
+    - cp cygwin-env /etc
+    - cp cygwin-shell /usr/bin
+    - cp cygwin-rebase /usr/bin
+    - cp cygwin-init /usr/bin
+    - cp cygwin32 /usr/bin
+    - cp cygwin64 /usr/bin
+
+# unset DRONE to skip copying wineprefix in cygwin-init
+    - DRONE=false WINEPREFIX=`pwd`/wineprefix CYGWIN_ARCH=$$arch cygwin-init
+
+notify:
+  gitter:
+    webhook: https://webhooks.gitter.im/e/d8f2032e40a8e78a3882
+
+publish:
+  docker:
+    file: Dockerfile
+    username: $$DOCKER_USER
+    password: $$DOCKER_PASS
+    email: $$DOCKER_EMAIL
+    repo: teaci/cygwin$$arch # Docker hub repo, not to confuse with Github repo.
+    tag:
+      - "testing"
+      - "w1.9.10-c2.5.2-2t"
+    when:
+      repo: TeaCI/cygwin-docker # Github repo, case sensitive
+      branch: master
+
+matrix:
+  arch:
+    - 64
+    - 32
