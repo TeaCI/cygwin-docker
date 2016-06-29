@@ -1,0 +1,45 @@
+build:
+  image: teaci/cygwin$$arch:testing
+  pull: true
+  shell: cygwin$$arch
+  commands:
+    - echo 'Prepare'
+    - if [ $$arch = 32 ]; then setup=setup-x86.exe; fi
+    - if [ $$arch = 64 ]; then setup=setup-x86_64.exe; fi
+    - wget -q http://cygwin.com/${setup}
+    - ./${setup} --site http://mirrors.tea-ci.org/cygwin --local-package-dir Z:/tmp/cygwin -W -P gettext-devel,zlib-devel,libiconv,libiconv-devel,mingw64-i686-gcc-g++,mingw64-i686-zlib,mingw64-x86_64-gcc-core,mingw64-x86_64-gcc-g++,mingw64-x86_64-zlib,dejagnu,dblatex,docbook-xml45,docbook-xsl,docbook2X,xmlto -q &> /dev/null
+
+    - git clone --depth 1 https://github.com/cygwin/cygwin
+    - cd cygwin
+    - srcdir=`pwd`
+    - builddir=/oss/build-stage1
+    - installdir=/oss/install-stage1
+    - mkdir -p ${builddir} ${installdir}
+    - cd ${builddir}
+    - ${srcdir}/configure --prefix=${installdir} -v
+    - make
+    - make install
+    - sha1sum ${installdir}/bin/cygwin1.dll /bin/cygwin1.dll
+
+notify:
+  gitter:
+    webhook: https://webhooks.gitter.im/e/d8f2032e40a8e78a3882
+
+publish:
+  docker:
+    file: Dockerfile.$$arch
+    username: $$DOCKER_USER
+    password: $$DOCKER_PASS
+    email: $$DOCKER_EMAIL
+    repo: teaci/cygwin$$arch # dockerhub repo, don't confused with github repo.
+    tag:
+      - "latest"
+      - "w1.9.10-c2.5.2-2r"
+    when:
+      repo: TeaCI/cygwin-docker # case sensitive
+      branch: release # only build latest tag in release branch.
+
+matrix:
+  arch:
+    - 64
+    - 32
