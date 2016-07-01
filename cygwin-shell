@@ -28,13 +28,9 @@ then
 
     echo "# Workaround docker image limitation"
     echo "# FIXME: These packages can't be preinstalled inside docker image because docker image does not support cygwin symlink."
-    echo "$ wine c:/cygwin-installer.exe --site http://mirrors.tea-ci.org/cygwin --local-package-dir Z:/tmp/cygwin -W -P autoconf,automake,gawk,texinfo,python,asciidoc,gettext-devel,git,intltool,scons,xmlto,wget -q"
+    echo "Installing autoconf,automake,gawk,texinfo,python,asciidoc,gettext-devel,git,intltool,scons,xmlto,wget"
+    WINEDEBUG=-all wine c:/cygwin-installer.exe --site http://mirrors.tea-ci.org/cygwin --local-package-dir Z:/tmp/cygwin -W -x gawk,python,ca-certificates -P gawk,python,ca-certificates -q &> /dev/null
     WINEDEBUG=-all wine c:/cygwin-installer.exe --site http://mirrors.tea-ci.org/cygwin --local-package-dir Z:/tmp/cygwin -W -P autoconf,automake,gawk,texinfo,python,asciidoc,gettext-devel,git,intltool,scons,xmlto,wget -q &> /dev/null
-    rm -f ${CYGWIN_ROOT}/bin/awk
-    cp ${CYGWIN_ROOT}/bin/gawk.exe ${CYGWIN_ROOT}/bin/awk.exe
-    rm -rf ${CYGWIN_ROOT}/etc/pki/tls/certs
-    cp -rf --preserve=xattr ${CYGWIN_ROOT}/usr/ssl/certs ${CYGWIN_ROOT}/etc/pki/tls/certs
-    cp -f  --preserve=xattr ${CYGWIN_ROOT}/etc/pki/ca-trust/extracted/pem/tls-ca-bundle.pem ${CYGWIN_ROOT}/etc/pki/tls/certs/ca-bundle.crt
     echo
 fi
 
