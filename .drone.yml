@@ -34,7 +34,7 @@ publish:
     repo: teaci/cygwin$$arch # dockerhub repo, don't confused with github repo.
     tag:
       - "latest"
-      - "w1.9.10-c2.5.2-2r"
+      - "w1.9.10-c2.5.2-3r"
     when:
       repo: TeaCI/cygwin-docker # case sensitive
       branch: release # only build latest tag in release branch.
